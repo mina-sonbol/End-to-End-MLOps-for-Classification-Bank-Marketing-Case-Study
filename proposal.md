@@ -20,7 +20,7 @@ This proposal outlines a comprehensive 4-week MVP for implementing an end-to-end
 
 The proposed platform transforms traditional supervised classification into a sophisticated anomaly detection system by treating normal patterns as one class and various types of anomalies as outliers or alternative classes.
 
-Note: Please check this [link](https://github.com/mina-sonbol/End-to-End-MLOps-for-Classification-Bank-Marketing-Case-Study) to see an implementation of an end-to-end classification platform developed for a case study conducted for a marketing campaign for a Banking institution.
+Note: Please check this [link](https://github.com/mina-sonbol/End-to-End-MLOps-for-Classification-Bank-Marketing-Case-Study/blob/main/README.md) to see an implementation of an end-to-end classification platform developed for a case study conducted for a marketing campaign for a Banking institution.
 
 
 ---
