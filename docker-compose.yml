@@ -1,0 +1,118 @@
+services:
+  postgresdb:
+    image: postgres:14
+    container_name: postgresdb
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - back-tier
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      retries: 5
+
+  adminer:
+    image: adminer
+    container_name: adminer    
+    restart: always
+    ports:
+      - "8080:8080"
+    networks:
+      - back-tier
+      - app-network  
+
+  mlflow:
+    container_name: mlflow-postgres
+    build:
+      context: .
+      dockerfile: mlflow.dockerfile
+    command: >
+      mlflow server --backend-store-uri postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${PG_HOST_PORT}/${POSTGRES_DB}?options=-csearch_path=${MLFLOW_SCHEMA} -h 0.0.0.0
+    env_file:
+      - .env
+    ports:
+      - "5000:5000"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_SCHEMA: ${MLFLOW_SCHEMA}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      PG_HOST_PORT: ${PG_HOST_PORT}
+    depends_on:
+      - postgresdb
+    volumes:
+      - ./mlflow/artifacts:/mlflow/artifacts
+    restart: always
+    networks:
+      - back-tier
+      - app-network
+      
+  magic:
+    image: mageai/mageai:latest
+    container_name: magic-postgres
+    depends_on:
+      - postgresdb
+    command: bash -c "pip3 install -r /home/src/mlops/requirements.txt && mage start ${PROJECT_NAME}"
+    env_file:
+      - .env
+    environment:
+      USER_CODE_PATH: /home/src/${PROJECT_NAME}
+      ENV: ${ENV}
+      MLFLOW_TRACKING_URI: http://mlflow:5000  # MLflow tracking URI  
+      MAGE_DATABASE_CONNECTION_URL: "postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${PG_HOST_PORT}/${POSTGRES_DB}?options=-c%20search_path%3D${MAGE_SCHEMA}"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      PG_HOST_PORT: ${PG_HOST_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_SCHEMA: ${MAGE_SCHEMA}
+    working_dir: /home/src/  
+    ports:
+      - "6789:6789"
+    volumes:
+      - ./requirements.txt:/home/src/mlops/requirements.txt:ro
+      - ./mlops/:/home/src/mlops
+      - ./mlflow/artifacts:/home/src/mlflow/artifacts
+      - ./data/:/home/src/mlops/data
+      - ./streamlit/config.toml:/home/src/.streamlit/config.toml
+    networks:
+      - app-network
+      - back-tier      
+    restart: on-failure:5
+    stdin_open: true # used for interactive debugging
+    tty: true # used for interactive debugging
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    depends_on:
+      - postgresdb
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin      
+    volumes:
+      - ./config/provisioning/grafana_datasources.yaml:/etc/grafana/provisioning/datasources/datasource.yaml:ro
+      - ./config/provisioning/grafana_dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
+      - ./config/provisioning/alert_rules.yaml:/etc/grafana/provisioning/alerting/alert_rules.yaml:ro
+      - ./config/provisioning/contact_points.yaml:/etc/grafana/provisioning/alerting/contact_points.yaml:ro
+      - ./config/provisioning/notification-policies.yaml:/etc/grafana/provisioning/alerting/notification-policies.yaml
+      - ./config/dashboards:/opt/grafana/dashboards
+      - ./config/grafana.ini:/etc/grafana/grafana.ini:ro
+    networks:
+      - app-network
+      - back-tier
+    restart: always
+
+networks:
+  back-tier:
+    driver: bridge
+  app-network:
+    driver: bridge
