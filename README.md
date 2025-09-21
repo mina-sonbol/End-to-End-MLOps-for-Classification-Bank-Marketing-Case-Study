@@ -1,4 +1,4 @@
-# End-to-End MLOps for Classification: Bank Marketing Case Study
+# End-to-End MLOps for Classification: Marketing Campaign for a Portuguese Banking Institution Case Study
 
 ## Introduction: Classification Problems and Applications
 
